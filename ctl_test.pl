@@ -1,121 +1,79 @@
 :- use_module(library(lists)).
 :- ensure_loaded(ctl).
 
-:- discontiguous state/2.
 :- discontiguous transition/2.
 :- discontiguous label/2.
 
-%%% ----------------- Example Model ----------------- 
-state(ss1, vars(a1, b1, c_unsafe)).
-state(ss2_1, vars(a2, b1, c_unsafe)).
-state(ss2_2, vars(a2, b1, c_safe)).
-state(ss3_1, vars(a1, b2, c_unsafe)).
-state(ss3_2, vars(a1, b2, c_safe)).
-
-transition(ss1, ss2_1).
-transition(ss1, ss3_1).
-transition(ss2_1, ss2_2).
-transition(ss3_1, ss3_2).
-
-label(State, stop_ok) :-
-	state(State, vars(_, _, c_safe)).
-
-label(State, a2) :-
-	state(State, vars(a2, _, _)).
-
-label(State, b2) :-
-	state(State, vars(_, b2, _)).
-
-label(State, b1) :-
-	state(State, vars(_, b1, _)).
-
-
-%%% ----------------- Verification Models ----------------- 
+%%% ----------------- Verification Models ----------------- %%%
 % Create a set of 2-tiered full and complete binary trees:
-% v_tree(Id, [V1, V2, V3, V4, V5, V6, V7], [S1, S2, S3, S4, S5, S6, S7]). 
-state(S, V) :-
-	v_tree(_, Vs, Ss),
-	nth1(N, Vs, V),
-	nth1(N, Ss, S).
+%$ v_tree(Id, [V1, V2, V3, V4, V5, V6, V7]).
+% all-empty tree
+v_tree(empty, [0, 0, 0, 0, 0, 0, 0]).
 
-transition(S1, S2) :-
-	v_tree(_, _, S),
-	nth1(N1, S, S1),
-	nth1(N2, S, S2),
-	vtree_transition(N1, N2).
-vtree_transition(1, 2).
-vtree_transition(1, 3).
-vtree_transition(2, 4).
-vtree_transition(2, 5).
-vtree_transition(3, 6).
-vtree_transition(3, 7).
+% all-full tree
+v_tree(full, [1, 1, 1, 1, 1, 1, 1]).
 
-label(State, full)  :- state(State, 1).
-label(State, empty) :- state(State, 0).
+% tree with single full state (leaf node 5)
+v_tree(one_full, [0, 0, 0, 0, 1, 0, 0]).
 
-entails(Id, N, Formula) :-
-	v_tree(Id, _, S),
-	nth1(N, S, State),
-	entails(State, Formula).
-	
-%% all-empty tree
-v_tree(empty, [0, 0, 0, 0, 0, 0, 0], [se1, se2, se3, se4, se5, se6, se7]).
+% tree with one branch full
+v_tree(branch_full, [1, 0, 1, 0, 0, 1, 0]).
 
-%% all-full tree
-v_tree(full, [1, 1, 1, 1, 1, 1, 1], [sf1, sf2, sf3, sf4, sf5, sf6, sf7]).
+% tree with single empty state (leaf node 5)
+v_tree(one_empty, [1, 1, 1, 1, 0, 1, 1]).
 
-%% tree with single full state (leaf node 5)
-v_tree(one_full, [0, 0, 0, 0, 1, 0, 0], [so1, so2, so3, so4, so5, so6, so7]).
+% tree with one branch empty
+v_tree(branch_empty, [0, 1, 0, 1, 1, 0, 1]).
 
-%% tree with one branch full
-v_tree(branch_full, [1, 0, 1, 0, 0, 1, 0], [sb1, sb2, sb3, sb4, sb5, sb6, sb7]).
+v_transition(S1, S2) :-
+	nth1(S1, [[2, 3],[4, 5],[6, 7]], T), member(S2, T);
+	S1 = S2, member(S1, [4, 5, 6, 7]).
 
-%% tree with single empty state (leaf node 5)
-v_tree(one_empty, [1, 1, 1, 1, 0, 1, 1], [soe1, soe2, soe3, soe4, soe5, soe6, soe7]).
+transition(v_state(Id, S1), v_state(Id, S2)) :- v_transition(S1, S2).
 
-%% tree with one branch empty
-v_tree(branch_empty, [0, 1, 0, 1, 1, 0, 1], [sbe1, sbe2, sbe3, sbe4, sbe5, sbe6, sbe7]).
+label(v_state(Id, S), proposition(full)) :- v_tree(Id, Vs), nth1(S, Vs, 1).
+label(v_state(Id, S), proposition(empty)) :- v_tree(Id, Vs), nth1(S, Vs, 0).
 
 
-%%% ----------------- Verification Model Testing ----------------- 
+%%% ----------------- Verification Model Testing ----------------- %%%
 test_formulae([
-	ctl_AX(proposition(full)),
-	ctl_AX(proposition(empty)),
-	ctl_EX(proposition(full)),
-	ctl_EX(proposition(empty)),
-	ctl_AG(proposition(full)),
-	ctl_AG(proposition(empty)),
-	ctl_EG(proposition(full)),
-	ctl_EG(proposition(empty)),
-	ctl_AF(proposition(full)),
-	ctl_AF(proposition(empty)),
-	ctl_EF(proposition(full)),
-	ctl_EF(proposition(empty))
+	ax(proposition(full)),
+	ax(proposition(empty)),
+	ex(proposition(full)),
+	ex(proposition(empty)),
+	ag(proposition(full)),
+	ag(proposition(empty)),
+	eg(proposition(full)),
+	eg(proposition(empty)), %
+	af(proposition(full)),
+	af(proposition(empty)),
+	ef(proposition(full)),
+	ef(proposition(empty))
 ]).
 
 test_all_formulae(_, [], [], []).
-test_all_formulae(I, [Expect | Erest], [Formula | Frest], [Result | Rrest]) :-
-	test(entails(I, 1, Formula), Expect, Result),
-	test_all_formulae(I, Erest, Frest, Rrest).
+test_all_formulae(State, [Expect | Erest], [Formula | Frest], [Result | Rrest]) :-
+	test(entails(State, Formula), Expect, Result),
+	test_all_formulae(State, Erest, Frest, Rrest).
 
 test(Predicate, true, pass) :- Predicate.
 test(Predicate, false, pass) :- not(Predicate).
 test(Predicate, true, fail) :- not(Predicate).
 test(Predicate, false, fail) :- Predicate.
 
-test_tree(Tree, Expects, Results) :-
+test_tree(State, Expects, Results) :-
 	test_formulae(Formulae), 
-	test_all_formulae(Tree, Expects, Formulae, Results), !.
+	test_all_formulae(State, Expects, Formulae, Results), !.
 
-test_tree(Tree, Expects) :-
-	test_tree(Tree, Expects, Results),
+test_tree(State, Expects) :-
+	test_tree(State, Expects, Results),
 	not(member(fail, Results)).
 
 % main entry point for testing a given tree.
 % ensure that test_vals are set, and provide the desired tree id to test.
 % runs all test propositions centered at the root.
-test(Id, R) :- test_vals(Id, Vs), test_tree(Id, Vs, R).
-test(Id) :- test_vals(Id, Vs), test_tree(Id, Vs).
+test(Id, R) :- test_vals(Id, Vs), test_tree(v_state(Id, 1), Vs, R).
+test(Id) :- test_vals(Id, Vs), test_tree(v_state(Id, 1), Vs).
 
 test_vals(empty, [false, true, false, true, false, true, false, true, false, true, false, true]).
 test_vals(full, [true, false, true, false, true, false, true, false, true, false, true, false]).
@@ -125,41 +83,42 @@ test_vals(branch_empty, [false, false, true, true, false, false, false, true, fa
 test_vals(branch_full, [false, false, true, true, false, false, true, false, true, false, true, true]).
 
 %% basic operator testing
-
-test_tautology :-
-	entails(full, 1, ctl_true),
-	not(entails(full, 1, ctl_false)).
+label(test_state, proposition(test)).
 
 test_proposition :-
-	entails(full, 1, proposition(full)).
+	entails(test_state, p(test)).
+
+test_tautology :-
+	entails(_, ctl_true),
+	not(entails(_, ctl_false)).
 
 test_not :- 
-	entails(full, 1, ctl_not(ctl_false)),
-	not(entails(full, 1, ctl_not(ctl_true))).
+	entails(_, ctl_not(ctl_false)),
+	not(entails(_, ctl_not(ctl_true))).
 
 test_and :-
-	entails(full, 1, ctl_and(ctl_true, ctl_true)),
-	not(entails(full, 1, ctl_and(ctl_true, ctl_false))),
-	not(entails(full, 1, ctl_and(ctl_false, ctl_true))),
-	not(entails(full, 1, ctl_and(ctl_false, ctl_false))).
+	entails(_, and(ctl_true, ctl_true)),
+	not(entails(_, and(ctl_true, ctl_false))),
+	not(entails(_, and(ctl_false, ctl_true))),
+	not(entails(_, and(ctl_false, ctl_false))).
 	
 test_or :-
-	entails(full, 1, ctl_or(ctl_true, ctl_true)),
-	entails(full, 1, ctl_or(ctl_true, ctl_false)),
-	entails(full, 1, ctl_or(ctl_false, ctl_true)),
-	not(entails(full, 1, ctl_or(ctl_false, ctl_false))).
+	entails(_, or(ctl_true, ctl_true)),
+	entails(_, or(ctl_true, ctl_false)),
+	entails(_, or(ctl_false, ctl_true)),
+	not(entails(_, or(ctl_false, ctl_false))).
 	
 test_implies :-
-	entails(full, 1, ctl_implies(ctl_true, ctl_true)),
-	not(entails(full, 1, ctl_implies(ctl_true, ctl_false))),
-	entails(full, 1, ctl_implies(ctl_false, ctl_true)),
-	entails(full, 1, ctl_implies(ctl_false, ctl_false)).
+	entails(_, implies(ctl_true, ctl_true)),
+	not(entails(_, implies(ctl_true, ctl_false))),
+	entails(_, implies(ctl_false, ctl_true)),
+	entails(_, implies(ctl_false, ctl_false)).
 
 test_iff :-
-	entails(full, 1, ctl_iff(ctl_true, ctl_true)),
-	not(entails(full, 1, ctl_iff(ctl_true, ctl_false))),
-	not(entails(full, 1, ctl_iff(ctl_false, ctl_true))),
-	entails(full, 1, ctl_iff(ctl_false, ctl_false)).
+	entails(_, iff(ctl_true, ctl_true)),
+	not(entails(_, iff(ctl_true, ctl_false))),
+	not(entails(_, iff(ctl_false, ctl_true))),
+	entails(_, iff(ctl_false, ctl_false)).
 
 test_operators :-
 	test_tautology,
@@ -170,7 +129,7 @@ test_operators :-
 	test_implies,
 	test_iff.
 
-%% ------  global test command ------
+%% global test command
 test_suite :-
 	test_operators,
 	test(empty),
@@ -179,3 +138,31 @@ test_suite :-
 	test(one_full),
 	test(branch_empty),
 	test(branch_full).
+
+
+%%% --------------------- Complex Tree Example --------------------- %%%
+state(complex, q1, 0, 1).
+state(complex, q2, 0, 1).
+state(complex, q3, 0, 1).
+state(complex, q4, 1, 1).
+state(complex, q5, 1, 0).
+state(complex, q6, 1, 0).
+state(complex, q7, 1, 0).
+
+transition(complex_state(S1), complex_state(S2)) :-
+	c_transition(complex, S1, S2).
+c_transition(complex, q1, q2).
+c_transition(complex, q1, q3).
+c_transition(complex, q2, q4).
+c_transition(complex, q2, q5).
+c_transition(complex, q3, q5).
+c_transition(complex, q3, q6).
+c_transition(complex, q3, q7).
+c_transition(complex, q4, q4).
+c_transition(complex, q5, q5).
+c_transition(complex, q6, q6).
+c_transition(complex, q7, q7).
+c_transition(complex, q6, q1).
+
+label(complex_state(State), proposition(red))  :- state(complex, State, 1, _).
+label(complex_state(State), proposition(blue))  :- state(complex, State, _, 1).
